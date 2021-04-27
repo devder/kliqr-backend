@@ -30,14 +30,6 @@ app.use('/api/', indexRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/transactions', transactionsRouter,)
 
-// catch 404 and forward to error handler
-app.use(function (req, res, next) {
-  let err = new Error('Not Found');
-  err.status = 404;
-  next(err);
-});
-
-
 // error handler
 app.use(errorHandler)
 

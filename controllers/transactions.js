@@ -16,6 +16,14 @@ function makeDb(config) {
     };
 }
 
+// const db = makeDb({
+//     user: "bac18c960a75b1",
+//     host: "us-cdbr-east-03.cleardb.com",
+//     password: "469ad2cf",
+//     database: "heroku_b0684ff5a014fb7", //comment out to support creating programatically with route
+//     multipleStatements: true
+// });
+
 const db = makeDb({
     user: "root",
     host: "localhost",
