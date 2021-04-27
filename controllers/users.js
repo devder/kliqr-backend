@@ -30,27 +30,40 @@ async function getAllUsers(req, res) {
         const users = await db.query(sql);
         res.status(200).json({ users })
     } catch (error) {
+        await db.close()
         console.log(error);
     }
 }
 
-//get specific user from db
-async function getUser(req, res) {
-    const { id } = req.params;
-
-
+//fetch user from db
+async function userGetter(id) {
     const sql = 'SELECT * FROM users WHERE id = ?';
     const totalSql = 'SELECT COUNT(*) as total_transactions FROM users INNER JOIN transactions ON transactions.user_id = users.id WHERE user_id = ?' +
         'UNION ALL SELECT SUM(transactions.amount) as sum_of_cred FROM users INNER JOIN transactions ON transactions.user_id = users.id WHERE user_id = ? AND type = "credit" ' +
         'UNION ALL SELECT SUM(transactions.amount) as sum_of_deb FROM users INNER JOIN transactions ON transactions.user_id = users.id WHERE user_id = ? AND type = "debit"'
     try {
         const user = await db.query(sql, [id])
+
         const totalCreditDebit = await db.query(totalSql, [id, id, id])
-        res.status(200).json({ user, totalCreditDebit })
+
+        return { user, totalCreditDebit };
     } catch (error) {
+        await db.close()
         console.log(error);
     }
 }
 
+//send user details to front end
+async function getUser(req, res) {
+    const { id } = req.params;
+    try {
+        const { user, totalCreditDebit } = await userGetter(id)
+        res.status(200).json({ user, totalCreditDebit })
+    } catch (error) {
+        console.log(error);
+    }
 
-module.exports = { getAllUsers, getUser }
+}
+
+
+module.exports = { getAllUsers, getUser, userGetter }

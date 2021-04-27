@@ -1,16 +1,17 @@
-const util = require('util');
+const { promisify } = require('util');
 const mysql = require('mysql');
+const { userGetter } = require('./users')
 
 //make database query a promise
 function makeDb(config) {
     const connection = mysql.createConnection(config);
     return {
         query(sql, args) {
-            return util.promisify(connection.query)
+            return promisify(connection.query)
                 .call(connection, sql, args);
         },
         close() {
-            return util.promisify(connection.end).call(connection);
+            return promisify(connection.end).call(connection);
         }
     };
 }
@@ -46,12 +47,13 @@ async function getTransactions(req, res) {
         const transactions = await db.query(sql)
         res.status(200).json({ transactions })
     } catch (error) {
+        await db.close()
         res.status(500).json({ message: 'Something went wrong' })
     }
 }
 
-//get users recurring expenses
-async function getUserRecurringExpenses(id) {
+//get users recurring expenses wrt a specific number of months
+async function getUserRecurringExpenses(id, numOfMonths) {
 
     let today = new Date();
     let currentMonth = today.getMonth() + 1
@@ -118,13 +120,14 @@ async function getUserRecurringExpenses(id) {
         }
 
         for (let categoryItem in allUsersCategoriesObject) {
-            if (allUsersCategoriesObject[categoryItem] > 7) {
+            if (allUsersCategoriesObject[categoryItem] >= numOfMonths) {
                 recurringExpenses.push(categoryItem)
             }
         }
 
         return recurringExpenses;
     } catch (error) {
+        await db.close()
         console.log(error);
     }
 }
@@ -132,9 +135,41 @@ async function getUserRecurringExpenses(id) {
 async function getExpenseTrend(req, res) {
     const { id } = req.params
     try {
-        const recurringExpenses = await getUserRecurringExpenses(id)
-        res.status(200).json({ recurringExpenses })
+        const sql = 'SELECT category,icon_url FROM transactions GROUP BY category,icon_url ORDER BY category'
+        const sql2 = 'SELECT id FROM users'
+        const otherUsersExpenseTrends = {};
+        const categoryWithIcons = await db.query(sql)
+
+        //passing '1' to the function lists all the categories a user has spent on
+        const recurringExpenses = await getUserRecurringExpenses(id, 7)
+
+        const expenseTrendIcons = categoryWithIcons.filter(category => recurringExpenses.includes(category.category))
+
+        const usersId = await db.query(sql2)
+
+
+        //get other users expense trend
+        for (let userId of usersId) {
+            otherUsersExpenseTrends[userId.id] = await getUserRecurringExpenses(userId.id, 5)
+        }
+
+        const similarUsers = []
+        for (let user in otherUsersExpenseTrends) {
+            if (otherUsersExpenseTrends[user].some(ex => recurringExpenses.includes(ex))) {
+                similarUsers.push(user)
+            }
+        }
+
+        const similarUsersDetails = []
+
+        for (let usr of similarUsers) {
+            const { user, totalCreditDebit } = await userGetter(usr)
+            similarUsersDetails.push({ user, totalCreditDebit })
+        }
+
+        res.status(200).json({ expenseTrendIcons, similarUsersDetails })
     } catch (error) {
+        await db.close()
         console.log(error);
     }
 }
